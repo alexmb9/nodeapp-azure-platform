@@ -4,3 +4,16 @@ variable "environment"  { type = string }
 variable "app_name"     { type = string }
 variable "region_code"  { type = string }
 variable "tags"         { type = map(string) }
+
+#vnet and app gateway vars
+variable "app_vnet_name"        { type = string }
+variable "app_vnet_cidr"        { type = list(string) }
+
+variable "subnet_appgw_cidr"    { type = string } # App Gateway subnet
+variable "subnet_app_cidr"      { type = string } # App workload subnet (PEs, integration)
+
+variable "appgw_name"           { type = string }
+variable "appgw_sku"            { type = string } # "Standard_v2" or "WAF_v2"
+variable "appgw_capacity"       { type = number }
+
+variable "appgw_private_ip"     { type = string } # static IP inside subnet_appgw_cidr
