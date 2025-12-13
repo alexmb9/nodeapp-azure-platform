@@ -40,6 +40,11 @@ resource "azurerm_application_gateway" "appgw" {
     capacity = var.appgw_capacity
   }
 
+  frontend_ip_configuration {
+    name                 = "feip-public-unused"
+    public_ip_address_id = azurerm_public_ip.appgw_pip.id
+  }
+
   gateway_ip_configuration {
     name      = "gwipcfg"
     subnet_id = azurerm_subnet.appgw.id
@@ -83,6 +88,7 @@ resource "azurerm_application_gateway" "appgw" {
     key_vault_secret_id = azurerm_key_vault_certificate.appgw.secret_id
   }
 
+#do not create any listener using feip-public-unused due to issue-1
   http_listener {
     name                           = "listener-https"
     frontend_ip_configuration_name = "feip-private"
@@ -102,10 +108,6 @@ resource "azurerm_application_gateway" "appgw" {
     backend_http_settings_name = "be-https"
     priority                   = 10
   }
-
-
-
-
 
   tags = var.tags
 }
@@ -173,5 +175,13 @@ resource "azurerm_key_vault_certificate" "appgw" {
   }
 }
 
-
-
+##hacky fix for weird issue on SKU tier selection for app gateway, add a public IP, but still not exposed
+##because nothing listens on the public front end - see issue #1 in github
+resource "azurerm_public_ip" "appgw_pip" {
+  name                = "pip-${var.appgw_name}"
+  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.app.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
