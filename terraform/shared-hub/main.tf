@@ -20,3 +20,29 @@ resource "azurerm_subnet" "azure_firewall_subnet" {
   virtual_network_name = azurerm_virtual_network.hub.name
   address_prefixes     = [var.fw_subnet_cidr]
 }
+
+#firewall public IP address
+resource "azurerm_public_ip" "fw_pip" {
+  name                = var.fw_public_ip_name
+  location            = azurerm_resource_group.shared.location
+  resource_group_name = azurerm_resource_group.shared.name
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = var.tags
+}
+
+#azure firewall and IP configuration
+resource "azurerm_firewall" "fw" {
+  name                = var.fw_name
+  location            = azurerm_resource_group.shared.location
+  resource_group_name = azurerm_resource_group.shared.name
+  sku_name            = "AZFW_VNet"
+  sku_tier            = "Standard"  # keep cost down; can change later
+  tags                = var.tags
+
+  ip_configuration {
+    name                 = "ipconfig"
+    subnet_id            = azurerm_subnet.azure_firewall_subnet.id
+    public_ip_address_id = azurerm_public_ip.fw_pip.id
+  }
+}
