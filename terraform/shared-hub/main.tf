@@ -129,3 +129,25 @@ resource "azurerm_role_assignment" "kv_platform_admin" {
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
 }
+
+#diagnostics resources for log analytics workspace
+resource "azurerm_monitor_diagnostic_setting" "firewall_diag" {
+  name                       = "diag-firewall"
+  target_resource_id         = azurerm_firewall.fw.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+
+  enabled_log { category = "AzureFirewallApplicationRule" }
+  enabled_log { category = "AzureFirewallNetworkRule" }
+  enabled_log { category = "AzureFirewallDnsProxy" }
+
+  metric { category = "AllMetrics" }
+}
+
+resource "azurerm_monitor_diagnostic_setting" "kv_diag" {
+  name                       = "diag-keyvault"
+  target_resource_id         = azurerm_key_vault.shared.id
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.law.id
+
+  enabled_log { category = "AuditEvent" }
+  metric      { category = "AllMetrics" }
+}
