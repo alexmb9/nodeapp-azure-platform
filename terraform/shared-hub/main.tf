@@ -123,8 +123,8 @@ resource "azurerm_key_vault" "shared" {
   tags = var.tags
 }
 
-# give user current admin rights 
-resource "azurerm_role_assignment" "kv_admin_me" {
+# give user current admin rights of the shared platform
+resource "azurerm_role_assignment" "kv_platform_admin" {
   scope                = azurerm_key_vault.shared.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
