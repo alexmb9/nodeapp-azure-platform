@@ -73,11 +73,22 @@ resource "azurerm_application_gateway" "appgw" {
     # host_name = "yourapp.azurewebsites.net"
   }
 
+      identity {
+    type         = "UserAssigned"
+    identity_ids = [azurerm_user_assigned_identity.appgw.id]
+  }
+
+    ssl_certificate {
+    name                = "kv-ssl"
+    key_vault_secret_id = azurerm_key_vault_certificate.appgw.secret_id
+  }
+
   http_listener {
     name                           = "listener-https"
     frontend_ip_configuration_name = "feip-private"
     frontend_port_name             = "feport-https"
     protocol                       = "Https"
+    ssl_certificate_name           = "kv-ssl"
 
     # For now we’ll run without TLS cert wiring.
     # Next step: attach cert from Key Vault (recommended).
@@ -92,6 +103,75 @@ resource "azurerm_application_gateway" "appgw" {
     priority                   = 10
   }
 
+
+
+
+
   tags = var.tags
 }
+
+#data sources, identity, key vault permissions for appgw
+
+data "azurerm_key_vault" "shared" {
+  name                = var.shared_kv_name
+  resource_group_name = var.shared_kv_rg
+}
+
+resource "azurerm_user_assigned_identity" "appgw" {
+  name                = "id-appgw-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.app.name
+  tags                = var.tags
+}
+
+# Allow App Gateway identity to read Key Vault secrets (RBAC-enabled vault)
+resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
+  scope                = data.azurerm_key_vault.shared.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = azurerm_user_assigned_identity.appgw.principal_id
+}
+
+#self-signed certificate
+resource "azurerm_key_vault_certificate" "appgw" {
+  name         = var.appgw_cert_name
+  key_vault_id = data.azurerm_key_vault.shared.id
+
+  certificate_policy {
+    issuer_parameters {
+      name = "Self"
+    }
+
+    key_properties {
+      exportable = true
+      key_type   = "RSA"
+      key_size   = 2048
+      reuse_key  = true
+    }
+
+    secret_properties {
+      content_type = "application/x-pkcs12"
+    }
+
+    x509_certificate_properties {
+      subject            = "CN=internal.nodeapp.local"
+      validity_in_months = 12
+      key_usage = [
+        "digitalSignature",
+        "keyEncipherment",
+      ]
+      extended_key_usage = ["1.3.6.1.5.5.7.3.1"] # serverAuth
+    }
+
+    lifetime_action {
+      action {
+        action_type = "AutoRenew"
+      }
+      trigger {
+        days_before_expiry = 30
+      }
+    }
+  }
+}
+
+
 

@@ -17,3 +17,10 @@ variable "appgw_sku"            { type = string } # "Standard_v2" or "WAF_v2"
 variable "appgw_capacity"       { type = number }
 
 variable "appgw_private_ip"     { type = string } # static IP inside subnet_appgw_cidr
+
+#key for cert for app gateway
+variable "shared_kv_name" { type = string }
+variable "shared_kv_rg"   { type = string }
+
+variable "appgw_cert_name" { type = string } # name of the cert in Key Vault
+
