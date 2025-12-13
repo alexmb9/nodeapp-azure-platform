@@ -101,3 +101,31 @@ resource "azurerm_private_dns_zone_virtual_network_link" "appsvc_hub_link" {
   private_dns_zone_name = azurerm_private_dns_zone.appsvc.name
   virtual_network_id    = azurerm_virtual_network.hub.id
 }
+
+#key vault resource
+data "azurerm_client_config" "current" {}
+
+resource "azurerm_key_vault" "shared" {
+  name                = var.key_vault_name
+  location            = azurerm_resource_group.shared.location
+  resource_group_name = azurerm_resource_group.shared.name
+  tenant_id           = data.azurerm_client_config.current.tenant_id
+
+  sku_name                  = "standard"
+  enable_rbac_authorization = true
+
+  soft_delete_retention_days = 90
+  purge_protection_enabled   = true
+
+  # We'll disable this once we add a Private Endpoint in the app stacks
+  public_network_access_enabled = true
+
+  tags = var.tags
+}
+
+# give user current admin rights 
+resource "azurerm_role_assignment" "kv_admin_me" {
+  scope                = azurerm_key_vault.shared.id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
