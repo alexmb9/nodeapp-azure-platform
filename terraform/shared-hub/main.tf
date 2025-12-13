@@ -1,3 +1,4 @@
+#shared resource group
 resource "azurerm_resource_group" "shared" {
   name     = "rg-shared-hub-prod"
   location = var.location
@@ -45,4 +46,16 @@ resource "azurerm_firewall" "fw" {
     subnet_id            = azurerm_subnet.azure_firewall_subnet.id
     public_ip_address_id = azurerm_public_ip.fw_pip.id
   }
+}
+
+#log analytic workspace
+resource "azurerm_log_analytics_workspace" "law" {
+  name                = var.log_analytics_name
+  location            = azurerm_resource_group.shared.location
+  resource_group_name = azurerm_resource_group.shared.name
+
+  sku               = var.log_analytics_sku
+  retention_in_days = var.log_retention_days
+
+  tags = var.tags
 }
