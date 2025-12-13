@@ -59,3 +59,45 @@ resource "azurerm_log_analytics_workspace" "law" {
 
   tags = var.tags
 }
+
+#azure sql private DNS zone
+resource "azurerm_private_dns_zone" "sql" {
+  name                = "privatelink.database.windows.net"
+  resource_group_name = azurerm_resource_group.shared.name
+  tags                = var.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "sql_hub_link" {
+  name                  = "sql-hub-link"
+  resource_group_name   = azurerm_resource_group.shared.name
+  private_dns_zone_name = azurerm_private_dns_zone.sql.name
+  virtual_network_id    = azurerm_virtual_network.hub.id
+}
+
+#key vault private DNS zone
+resource "azurerm_private_dns_zone" "kv" {
+  name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = azurerm_resource_group.shared.name
+  tags                = var.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "kv_hub_link" {
+  name                  = "kv-hub-link"
+  resource_group_name   = azurerm_resource_group.shared.name
+  private_dns_zone_name = azurerm_private_dns_zone.kv.name
+  virtual_network_id    = azurerm_virtual_network.hub.id
+}
+
+#app service private dns
+resource "azurerm_private_dns_zone" "appsvc" {
+  name                = "privatelink.azurewebsites.net"
+  resource_group_name = azurerm_resource_group.shared.name
+  tags                = var.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "appsvc_hub_link" {
+  name                  = "appsvc-hub-link"
+  resource_group_name   = azurerm_resource_group.shared.name
+  private_dns_zone_name = azurerm_private_dns_zone.appsvc.name
+  virtual_network_id    = azurerm_virtual_network.hub.id
+}

@@ -14,3 +14,5 @@ variable "fw_public_ip_name" { type = string }
 variable "log_analytics_name" { type = string }
 variable "log_analytics_sku"  { type = string }   # e.g. "PerGB2018"
 variable "log_retention_days" { type = number }   # e.g. 30
+
+#Private DNS vars
