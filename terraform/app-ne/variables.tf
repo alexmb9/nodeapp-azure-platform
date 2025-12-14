@@ -55,10 +55,3 @@ variable "subscription_id" {
   type        = string
   description = "Azure subscription ID"
 }
-
-#sql server password variable
-variable "sql_admin_password" {
-  type        = string
-  sensitive   = true
-  description = "SQL Server administrator password"
-}
