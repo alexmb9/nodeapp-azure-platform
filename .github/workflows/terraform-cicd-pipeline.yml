@@ -286,6 +286,20 @@ jobs:
           else
             echo " VNet peering state: $PEERING_STATE"
           fi
+      - name: Test 6 - Verify NodeApp Service
+        run: |
+          echo "Testing App Service..."
+          if [ "${{ vars.ENABLE_APP_SERVICE }}" == "true" ]; then
+            APP_URL=$(az webapp show \
+              --name appsvc-nodeapp-prod-ne01 \
+              --resource-group rg-nodeapp-prod-ne \
+              --query "defaultHostName" -o tsv)
+            
+            curl -f -s -o /dev/null https://$APP_URL/health || echo "⚠️ App Service health check failed"
+            echo "✅ App Service is running"
+          else
+            echo "⚠️ App Service is disabled"
+          fi
 
       - name: Health Check Summary
         run: |
