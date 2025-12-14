@@ -141,7 +141,7 @@ resource "azurerm_role_assignment" "appgw_kv_secrets_user" {
   principal_id         = azurerm_user_assigned_identity.appgw.principal_id
 
   lifecycle {
-    ignore_changes = [name]
+    ignore_changes        = [name]
     create_before_destroy = false
   }
 }
@@ -253,7 +253,7 @@ resource "azurerm_role_assignment" "sql_kv_crypto_user" {
   principal_id         = azurerm_mssql_server.sql.identity[0].principal_id
 
   lifecycle {
-    ignore_changes = [name]
+    ignore_changes        = [name]
     create_before_destroy = false
   }
 }
