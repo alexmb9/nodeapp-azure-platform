@@ -1,8 +1,7 @@
 name: Terraform CI/CD Pipeline
 
 # This pipeline handles deployments for:
-# - shared-hub: AzureRM provider v3.x
-# - app-ne: AzureRM provider v4.x
+# - shared-hub and app-ne
 # Each module maintains its own provider version independently
 
 on:
@@ -63,12 +62,7 @@ jobs:
       - name: Terraform Init
         working-directory: terraform/${{ matrix.environment }}
         run: |
-          # Handle different provider versions
-          if [ "${{ matrix.environment }}" == "shared-hub" ]; then
-            echo "Initializing shared-hub with AzureRM v3.x"
-          else
-            echo "Initializing app-ne with AzureRM v4.x"
-          fi
+          echo "Initializing ${{ matrix.environment }}"
           terraform init -backend-config=env/prod/backend.tfvars
 
       - name: Terraform Validate
@@ -93,7 +87,7 @@ jobs:
           terraform show -json tfplan-${{ matrix.environment }}.binary > tfplan-${{ matrix.environment }}.json
 
       - name: Upload Plan Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
           path: |
@@ -160,7 +154,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Download Plan Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ matrix.environment }}
           path: terraform/${{ matrix.environment }}
@@ -198,7 +192,7 @@ jobs:
           echo "outputs=$(cat outputs.json)" >> $GITHUB_OUTPUT
 
       - name: Upload Deployment Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: deployment-${{ matrix.environment }}
           path: terraform/${{ matrix.environment }}/outputs.json
@@ -223,7 +217,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Download Deployment Outputs
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deployment-app-ne
           path: ./outputs
@@ -232,7 +226,7 @@ jobs:
         run: |
           echo "Testing resource group existence..."
           az group show --name rg-nodeapp-prod-ne --query "properties.provisioningState" -o tsv | grep -q "Succeeded"
-          echo "✅ Resource group verified"
+          echo "PASS: Resource group verified"
 
       - name: Test 2 - Verify App Gateway
         run: |
@@ -243,9 +237,9 @@ jobs:
             --query "provisioningState" -o tsv)
           
           if [ "$STATUS" == "Succeeded" ]; then
-            echo "✅ Application Gateway is healthy"
+            echo "PASS: Application Gateway is healthy"
           else
-            echo "❌ Application Gateway failed: $STATUS"
+            echo "FAIL: Application Gateway failed: $STATUS"
             exit 1
           fi
 
@@ -258,9 +252,9 @@ jobs:
             --query "fullyQualifiedDomainName" -o tsv)
           
           if [ -n "$SQL_SERVER" ]; then
-            echo "✅ SQL Server is accessible: $SQL_SERVER"
+            echo "PASS: SQL Server is accessible: $SQL_SERVER"
           else
-            echo "❌ SQL Server not found"
+            echo "FAIL: SQL Server not found"
             exit 1
           fi
 
@@ -287,39 +281,12 @@ jobs:
             echo "⚠️  VNet peering state: $PEERING_STATE"
           fi
 
-      - name: Setup Monitoring Alerts
-        run: |
-          echo "Setting up Azure Monitor alerts..."
-          
-          # Create action group for notifications
-          az monitor action-group create \
-            --name ag-nodeapp-prod-alerts \
-            --resource-group rg-nodeapp-prod-ne \
-            --short-name NodeAppOps \
-            --email-receiver admin admin@example.com \
-            || echo "Action group already exists"
-          
-          # Application Gateway health alert
-          az monitor metrics alert create \
-            --name alert-appgw-unhealthy \
-            --resource-group rg-nodeapp-prod-ne \
-            --scopes $(az network application-gateway show --name agw-nodeapp-prod-ne --resource-group rg-nodeapp-prod-ne --query id -o tsv) \
-            --condition "avg UnhealthyHostCount > 0" \
-            --window-size 5m \
-            --evaluation-frequency 1m \
-            --action ag-nodeapp-prod-alerts \
-            --description "Alert when Application Gateway has unhealthy hosts" \
-            || echo "Alert already exists"
-          
-          echo "✅ Monitoring alerts configured"
-
       - name: Health Check Summary
         run: |
           echo "================================================"
           echo "🎉 POST-DEPLOY TESTS PASSED"
           echo "================================================"
           echo "All infrastructure components are healthy and operational"
-          echo "Monitoring and alerting configured successfully"
 
   # ==========================================
   # STAGE 4: ROLLBACK
@@ -348,7 +315,7 @@ jobs:
 
       - name: List Available Backups
         run: |
-          echo "📋 Available state backups:"
+          echo "Available state backups:"
           az storage blob list \
             --account-name sttfstatesharedambprod \
             --container-name tfstate-backups \
@@ -412,7 +379,7 @@ jobs:
             github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '🚨 Production Rollback Executed',
+              title: 'Production Rollback Executed',
               body: `## Rollback Summary
               
               **Trigger**: ${{ github.event_name }}
@@ -428,7 +395,7 @@ jobs:
       - name: Send Teams/Slack Notification
         if: always()
         run: |
-          echo "🚨 ROLLBACK EXECUTED - Infrastructure reverted to previous state"
+          echo "ROLLBACK EXECUTED - Infrastructure reverted to previous state"
           echo "Manual verification required before next deployment"
 
   # ==========================================
@@ -444,13 +411,13 @@ jobs:
       - name: Send Success Notification
         if: needs.post-deploy-tests.result == 'success'
         run: |
-          echo "✅ DEPLOYMENT SUCCESSFUL"
+          echo "DEPLOYMENT SUCCESSFUL"
           echo "All stages completed successfully"
           echo "Infrastructure is healthy and operational"
 
       - name: Send Failure Notification
         if: needs.post-deploy-tests.result == 'failure'
         run: |
-          echo "❌ DEPLOYMENT FAILED"
+          echo "DEPLOYMENT FAILED"
           echo "Rollback procedures initiated"
           echo "Manual intervention may be required"
