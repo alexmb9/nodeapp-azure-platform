@@ -15,19 +15,19 @@ resource "azurerm_virtual_network" "app" {
 }
 
 resource "azurerm_subnet" "appgw" {
-  name                 = "snet-appgw"
-  resource_group_name  = azurerm_resource_group.app.name
-  virtual_network_name = azurerm_virtual_network.app.name
+  name                              = "snet-appgw"
+  resource_group_name               = azurerm_resource_group.app.name
+  virtual_network_name              = azurerm_virtual_network.app.name
   private_endpoint_network_policies = "Enabled"
-  address_prefixes     = [var.subnet_appgw_cidr]
+  address_prefixes                  = [var.subnet_appgw_cidr]
 }
 
 resource "azurerm_subnet" "app" {
-  name                 = "snet-app"
-  resource_group_name  = azurerm_resource_group.app.name
-  virtual_network_name = azurerm_virtual_network.app.name
+  name                              = "snet-app"
+  resource_group_name               = azurerm_resource_group.app.name
+  virtual_network_name              = azurerm_virtual_network.app.name
   private_endpoint_network_policies = "Disabled"
-  address_prefixes     = [var.subnet_app_cidr]
+  address_prefixes                  = [var.subnet_app_cidr]
 }
 
 #Internal application gateway, private frontend
@@ -37,7 +37,7 @@ resource "azurerm_application_gateway" "appgw" {
   resource_group_name = azurerm_resource_group.app.name
 
   sku {
-    name     = var.appgw_sku        # "Standard_v2" or "WAF_v2"
+    name     = var.appgw_sku # "Standard_v2" or "WAF_v2"
     tier     = var.appgw_sku
     capacity = var.appgw_capacity
   }
@@ -86,17 +86,17 @@ resource "azurerm_application_gateway" "appgw" {
     # host_name = "yourapp.azurewebsites.net"
   }
 
-      identity {
+  identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.appgw.id]
   }
 
-    ssl_certificate {
+  ssl_certificate {
     name                = "kv-ssl"
     key_vault_secret_id = azurerm_key_vault_certificate.appgw.secret_id
   }
 
-#do not create any listener using feip-public-unused due to issue-1
+  #do not create any listener using feip-public-unused due to issue-1
   http_listener {
     name                           = "listener-https"
     frontend_ip_configuration_name = "feip-private"
@@ -197,9 +197,9 @@ resource "azurerm_public_ip" "appgw_pip" {
 
 ##cmk and sql server
 locals {
-  sql_server_name = "sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
-  sql_db_name     = "sqldb-${lower(var.app_name)}-${lower(var.environment)}"
-  sql_cmk_key_name     = "cmk-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  sql_server_name  = "sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  sql_db_name      = "sqldb-${lower(var.app_name)}-${lower(var.environment)}"
+  sql_cmk_key_name = "cmk-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
 }
 
 resource "azurerm_key_vault_key" "sql_cmk" {
@@ -211,10 +211,10 @@ resource "azurerm_key_vault_key" "sql_cmk" {
 }
 
 resource "azurerm_mssql_server" "sql" {
-  name                         = local.sql_server_name
-  resource_group_name          = azurerm_resource_group.app.name
-  location                     = azurerm_resource_group.app.location
-  version                      = "12.0"
+  name                = local.sql_server_name
+  resource_group_name = azurerm_resource_group.app.name
+  location            = azurerm_resource_group.app.location
+  version             = "12.0"
 
   administrator_login          = var.sql_admin_login
   administrator_login_password = var.sql_admin_password
@@ -225,10 +225,10 @@ resource "azurerm_mssql_server" "sql" {
 
   #fixes key bug
   lifecycle {
-  ignore_changes = [
-    transparent_data_encryption_key_vault_key_id
-  ]
-}
+    ignore_changes = [
+      transparent_data_encryption_key_vault_key_id
+    ]
+  }
 
   tags = var.tags
 }
@@ -261,11 +261,11 @@ resource "azurerm_mssql_server_transparent_data_encryption" "tde" {
 
 #app service vnet delegated subnet, for vnet integration
 resource "azurerm_subnet" "appsvc_integration" {
-  name                 = "snet-appsvc-int"
-  resource_group_name  = azurerm_resource_group.app.name
-  virtual_network_name = azurerm_virtual_network.app.name
+  name                              = "snet-appsvc-int"
+  resource_group_name               = azurerm_resource_group.app.name
+  virtual_network_name              = azurerm_virtual_network.app.name
   private_endpoint_network_policies = "Enabled"
-  address_prefixes     = [var.appsvc_int_cidr]
+  address_prefixes                  = [var.appsvc_int_cidr]
 
   delegation {
     name = "delegation-appsvc"
@@ -283,8 +283,8 @@ resource "azurerm_service_plan" "appsvc_plan" {
   resource_group_name = azurerm_resource_group.app.name
   location            = azurerm_resource_group.app.location
 
-  os_type   = "Linux"
-  sku_name  = "S1"
+  os_type  = "Linux"
+  sku_name = "S1"
 
   tags = var.tags
 }
@@ -304,8 +304,8 @@ resource "azurerm_linux_web_app" "nodeapp" {
   }
 
   site_config {
-    always_on         = true
-    health_check_path = var.health_check_path
+    always_on                         = true
+    health_check_path                 = var.health_check_path
     health_check_eviction_time_in_min = 2
 
     application_stack {
@@ -323,7 +323,7 @@ resource "azurerm_linux_web_app" "nodeapp" {
       PORT                     = "8080"
 
       # Optional: keeps deployments tidy / predictable
-      SCM_DO_BUILD_DURING_DEPLOYMENT = "true" },
+    SCM_DO_BUILD_DURING_DEPLOYMENT = "true" },
 
     #Flag to enable telemetry when flag is flipped (SKU provision is allowed)  
     var.enable_app_service ? {
@@ -338,7 +338,7 @@ resource "azurerm_linux_web_app" "nodeapp" {
 
 #VNet integration to reach endpoints
 resource "azurerm_app_service_virtual_network_swift_connection" "nodeapp_vnetint" {
-  count = var.enable_app_service ? 1 : 0
+  count          = var.enable_app_service ? 1 : 0
   app_service_id = azurerm_linux_web_app.nodeapp[count.index].id
   subnet_id      = azurerm_subnet.appsvc_integration.id
 }

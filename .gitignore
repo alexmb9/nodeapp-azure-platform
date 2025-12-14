@@ -2,6 +2,7 @@
 **/.terraform.lock.hcl
 **/terraform.tfstate
 **/terraform.tfstate.*
+**/terraform/app-ne/env/dev/terraform.tfvars
 
 # Allow terraform.tfvars but block sensitive overrides
 **/*.auto.tfvars
