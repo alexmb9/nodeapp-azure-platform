@@ -357,6 +357,83 @@ resource "azurerm_application_insights" "appins" {
 }
 
 
+#DNS zone lookups and VNet links
+data "azurerm_private_dns_zone" "sql" {
+  name                = "privatelink.database.windows.net"
+  resource_group_name = var.shared_dns_rg
+}
+
+data "azurerm_private_dns_zone" "kv" {
+  name                = "privatelink.vaultcore.azure.net"
+  resource_group_name = var.shared_dns_rg
+}
+
+#link app to VNet of the dns zones
+resource "azurerm_private_dns_zone_virtual_network_link" "sql_link" {
+  name                  = "vnetlink-sql-${lower(var.environment)}-${lower(var.region_code)}"
+  resource_group_name   = var.shared_dns_rg
+  private_dns_zone_name = data.azurerm_private_dns_zone.sql.name
+  virtual_network_id    = azurerm_virtual_network.app.id
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "kv_link" {
+  name                  = "vnetlink-kv-${lower(var.environment)}-${lower(var.region_code)}"
+  resource_group_name   = var.shared_dns_rg
+  private_dns_zone_name = data.azurerm_private_dns_zone.kv.name
+  virtual_network_id    = azurerm_virtual_network.app.id
+}
+
+#sql private endpoints
+resource "azurerm_private_endpoint" "sql" {
+  name                = "pe-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.app.name
+  subnet_id           = azurerm_subnet.app.id
+
+  private_service_connection {
+    name                           = "psc-sql-${lower(var.environment)}-${lower(var.region_code)}"
+    private_connection_resource_id = azurerm_mssql_server.sql.id
+    subresource_names              = ["sqlServer"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "pdzg-sql"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.sql.id]
+  }
+
+  tags = var.tags
+
+  depends_on = [azurerm_private_dns_zone_virtual_network_link.sql_link]
+}
+
+#key vault private endpoint
+resource "azurerm_private_endpoint" "kv" {
+  name                = "pe-kv-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.app.name
+  subnet_id           = azurerm_subnet.app.id
+
+  private_service_connection {
+    name                           = "psc-kv-${lower(var.environment)}-${lower(var.region_code)}"
+    private_connection_resource_id = data.azurerm_key_vault.shared.id
+    subresource_names              = ["vault"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "pdzg-kv"
+    private_dns_zone_ids = [data.azurerm_private_dns_zone.kv.id]
+  }
+
+  tags = var.tags
+
+  depends_on = [azurerm_private_dns_zone_virtual_network_link.kv_link]
+}
+
+
+
+
 
 
 
