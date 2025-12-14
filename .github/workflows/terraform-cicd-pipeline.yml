@@ -5,11 +5,6 @@ name: Terraform CI/CD Pipeline
 # Each module maintains its own provider version independently
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'terraform/**'
   pull_request:
     branches:
       - main

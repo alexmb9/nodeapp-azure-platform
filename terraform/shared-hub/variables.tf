@@ -42,3 +42,9 @@ variable "key_vault_name" { type = string }
 
 # Certificate variables
 variable "appgw_cert_name" { type = string }
+
+#sql server password variable
+variable "sql_admin_password" {
+  type      = string
+  sensitive = true
+}
