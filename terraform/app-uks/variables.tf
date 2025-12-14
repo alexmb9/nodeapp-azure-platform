@@ -38,3 +38,12 @@ variable "appsvc_name"     { type = string }      # keep unique per env/region
 variable "appsvc_int_cidr" { type = string }      # delegated subnet for VNet integration
 variable "health_check_path" { type = string }    # e.g. "/health"
 
+#feature flag for app service (as SKU v3 are unavailable)
+variable "enable_app_service" { 
+  type = bool
+  default = false
+}
+
+#application insights variables
+variable "shared_law_name" { type = string }
+variable "shared_law_rg"   { type = string }

@@ -221,6 +221,13 @@ resource "azurerm_mssql_server" "sql" {
     type = "SystemAssigned"
   }
 
+  #fixes key bug
+  lifecycle {
+  ignore_changes = [
+    transparent_data_encryption_key_vault_key_id
+  ]
+}
+
   tags = var.tags
 }
 
@@ -268,6 +275,7 @@ resource "azurerm_subnet" "appsvc_integration" {
 
 #linux app service plan
 resource "azurerm_service_plan" "appsvc_plan" {
+  count               = var.enable_app_service ? 1 : 0
   name                = "asp-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
   resource_group_name = azurerm_resource_group.app.name
   location            = azurerm_resource_group.app.location
@@ -278,12 +286,13 @@ resource "azurerm_service_plan" "appsvc_plan" {
   tags = var.tags
 }
 
-#linux web app (node) + managed identity
+# Linux Web App (Node) + Managed Identity
 resource "azurerm_linux_web_app" "nodeapp" {
+  count               = var.enable_app_service ? 1 : 0
   name                = var.appsvc_name
   resource_group_name = azurerm_resource_group.app.name
   location            = azurerm_resource_group.app.location
-  service_plan_id     = azurerm_service_plan.appsvc_plan.id
+  service_plan_id     = azurerm_service_plan.appsvc_plan[count.index].id
 
   https_only = true
 
@@ -292,28 +301,55 @@ resource "azurerm_linux_web_app" "nodeapp" {
   }
 
   site_config {
-    always_on        = true
+    always_on         = true
     health_check_path = var.health_check_path
 
     application_stack {
       node_version = "20-lts"
     }
+
+    # Optional, but helpful for “secure by default”
+    minimum_tls_version = "1.2"
+    ftps_state          = "Disabled"
   }
 
   app_settings = {
-    "NODE_ENV"                 = lower(var.environment)
-    "WEBSITE_RUN_FROM_PACKAGE" = "1"
-    "PORT"                     = "8080"
+    NODE_ENV                 = lower(var.environment)
+    WEBSITE_RUN_FROM_PACKAGE = "1"
+    PORT                     = "8080"
+
+    # Optional: keeps deployments tidy / predictable
+    SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
   }
 
   tags = var.tags
 }
 
+
 #VNet integration to reach endpoints
 resource "azurerm_app_service_virtual_network_swift_connection" "nodeapp_vnetint" {
-  app_service_id = azurerm_linux_web_app.nodeapp.id
+  count = var.enable_app_service ? 1 : 0
+  app_service_id = azurerm_linux_web_app.nodeapp[count.index].id
   subnet_id      = azurerm_subnet.appsvc_integration.id
 }
+
+
+#Data source for application insights
+data "azurerm_log_analytics_workspace" "shared" {
+  name                = var.shared_law_name
+  resource_group_name = var.shared_law_rg
+}
+
+resource "azurerm_application_insights" "appins" {
+  name                = "appi-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  location            = azurerm_resource_group.app.location
+  resource_group_name = azurerm_resource_group.app.name
+  application_type    = "web"
+  workspace_id        = data.azurerm_log_analytics_workspace.shared.id
+
+  tags = var.tags
+}
+
 
 
 
