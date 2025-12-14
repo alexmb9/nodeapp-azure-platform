@@ -197,7 +197,7 @@ resource "azurerm_public_ip" "appgw_pip" {
 locals {
   sql_server_name = "sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
   sql_db_name     = "sqldb-${lower(var.app_name)}-${lower(var.environment)}"
-  sql_cmk_key     = "cmk-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  sql_cmk_key_name     = "cmk-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
 }
 
 resource "azurerm_key_vault_key" "sql_cmk" {
@@ -224,36 +224,33 @@ resource "azurerm_mssql_server" "sql" {
   tags = var.tags
 }
 
+##creating the database
+resource "azurerm_mssql_database" "db" {
+  name      = local.sql_db_name
+  server_id = azurerm_mssql_server.sql.id
+  sku_name  = "Basic"
+
+  depends_on = [azurerm_mssql_server_transparent_data_encryption.tde]
+}
+
 resource "azurerm_role_assignment" "sql_kv_crypto_user" {
   scope                = data.azurerm_key_vault.shared.id
   role_definition_name = "Key Vault Crypto Service Encryption User"
   principal_id         = azurerm_mssql_server.sql.identity[0].principal_id
 }
 
-resource "azurerm_mssql_server_key" "tde_key" {
-  server_id        = azurerm_mssql_server.sql.id
-  key_vault_key_id = azurerm_key_vault_key.sql_cmk.id
-
-  depends_on = [azurerm_role_assignment.sql_kv_crypto_user]
-}
-
 resource "azurerm_mssql_server_transparent_data_encryption" "tde" {
   server_id        = azurerm_mssql_server.sql.id
   key_vault_key_id = azurerm_key_vault_key.sql_cmk.id
 
-  depends_on = [azurerm_mssql_server_key.tde_key]
+  # Optional but nice for “bank-grade”:
+  auto_rotation_enabled = true
+
+  depends_on = [azurerm_role_assignment.sql_kv_crypto_user]
 }
 
-##creating the database
-resource "azurerm_mssql_database" "db" {
-  name      = local.sql_db_name
-  server_id = azurerm_mssql_server.sql.id
-  sku_name  = "Basic" # keep cost low; parameterise later if needed
 
-  tags = var.tags
 
-  depends_on = [azurerm_mssql_server_transparent_data_encryption.tde]
-}
 
 
 
