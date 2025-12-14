@@ -18,6 +18,7 @@ resource "azurerm_subnet" "appgw" {
   name                 = "snet-appgw"
   resource_group_name  = azurerm_resource_group.app.name
   virtual_network_name = azurerm_virtual_network.app.name
+  private_endpoint_network_policies = "Enabled"
   address_prefixes     = [var.subnet_appgw_cidr]
 }
 
@@ -25,6 +26,7 @@ resource "azurerm_subnet" "app" {
   name                 = "snet-app"
   resource_group_name  = azurerm_resource_group.app.name
   virtual_network_name = azurerm_virtual_network.app.name
+  private_endpoint_network_policies = "Disabled"
   address_prefixes     = [var.subnet_app_cidr]
 }
 
@@ -262,6 +264,7 @@ resource "azurerm_subnet" "appsvc_integration" {
   name                 = "snet-appsvc-int"
   resource_group_name  = azurerm_resource_group.app.name
   virtual_network_name = azurerm_virtual_network.app.name
+  private_endpoint_network_policies = "Enabled"
   address_prefixes     = [var.appsvc_int_cidr]
 
   delegation {
@@ -281,7 +284,7 @@ resource "azurerm_service_plan" "appsvc_plan" {
   location            = azurerm_resource_group.app.location
 
   os_type   = "Linux"
-  sku_name  = var.appsvc_plan_sku
+  sku_name  = "S1"
 
   tags = var.tags
 }
@@ -303,6 +306,7 @@ resource "azurerm_linux_web_app" "nodeapp" {
   site_config {
     always_on         = true
     health_check_path = var.health_check_path
+    health_check_eviction_time_in_min = 2
 
     application_stack {
       node_version = "20-lts"

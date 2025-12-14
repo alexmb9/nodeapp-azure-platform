@@ -2,13 +2,13 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "~> 3.0"
+      version = "~> 4.0"
     }
   }
 
-  backend "azurerm" {}
 }
 
 provider "azurerm" {
+  subscription_id = var.subscription_id
   features {}
 }

@@ -33,7 +33,6 @@ variable "sql_admin_password" {
 }
 
 #app-svc variables
-variable "appsvc_plan_sku" { type = string }      # e.g. "B1" (cheap) or "P1v3" (better)
 variable "appsvc_name"     { type = string }      # keep unique per env/region
 variable "appsvc_int_cidr" { type = string }      # delegated subnet for VNet integration
 variable "health_check_path" { type = string }    # e.g. "/health"
@@ -47,3 +46,12 @@ variable "enable_app_service" {
 #application insights variables
 variable "shared_law_name" { type = string }
 variable "shared_law_rg"   { type = string }
+
+#private dns zone vars
+variable "shared_dns_rg" { type = string } # rg where Private DNS zones live (shared-hub)
+
+##subscription change for v4
+variable "subscription_id" {
+  type        = string
+  description = "Azure subscription ID"
+}
