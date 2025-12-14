@@ -62,8 +62,14 @@ jobs:
       - name: Terraform Init
         working-directory: terraform/${{ matrix.environment }}
         run: |
-          echo "Initializing ${{ matrix.environment }}"
-          terraform init -backend-config=env/prod/backend.tfvars
+          # Handle different backend configurations
+          if [ "${{ matrix.environment }}" == "shared-hub" ]; then
+            echo "Initializing shared-hub (backend config in backend.tf)"
+            terraform init
+          else
+            echo "Initializing app-ne (backend config in backend.tfvars)"
+            terraform init -backend-config=env/prod/backend.tfvars
+          fi
 
       - name: Terraform Validate
         working-directory: terraform/${{ matrix.environment }}
@@ -161,7 +167,12 @@ jobs:
 
       - name: Terraform Init
         working-directory: terraform/${{ matrix.environment }}
-        run: terraform init -backend-config=env/prod/backend.tfvars
+        run: |
+          if [ "${{ matrix.environment }}" == "shared-hub" ]; then
+            terraform init
+          else
+            terraform init -backend-config=env/prod/backend.tfvars
+          fi
 
       - name: Create State Backup
         working-directory: terraform/${{ matrix.environment }}
