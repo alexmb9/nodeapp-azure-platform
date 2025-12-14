@@ -40,6 +40,12 @@ resource "azurerm_application_gateway" "appgw" {
     capacity = var.appgw_capacity
   }
 
+  ssl_policy {
+    policy_type = "Predefined"
+    policy_name = "AppGwSslPolicy20170401S"
+  }
+
+
   frontend_ip_configuration {
     name                 = "feip-public-unused"
     public_ip_address_id = azurerm_public_ip.appgw_pip.id
@@ -185,3 +191,70 @@ resource "azurerm_public_ip" "appgw_pip" {
   sku                 = "Standard"
   tags                = var.tags
 }
+
+
+##cmk and sql server
+locals {
+  sql_server_name = "sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  sql_db_name     = "sqldb-${lower(var.app_name)}-${lower(var.environment)}"
+  sql_cmk_key     = "cmk-sql-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+}
+
+resource "azurerm_key_vault_key" "sql_cmk" {
+  name         = local.sql_cmk_key_name
+  key_vault_id = data.azurerm_key_vault.shared.id
+  key_type     = "RSA"
+  key_size     = 2048
+  key_opts     = ["wrapKey", "unwrapKey"]
+}
+
+resource "azurerm_mssql_server" "sql" {
+  name                         = local.sql_server_name
+  resource_group_name          = azurerm_resource_group.app.name
+  location                     = azurerm_resource_group.app.location
+  version                      = "12.0"
+
+  administrator_login          = var.sql_admin_login
+  administrator_login_password = var.sql_admin_password
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  tags = var.tags
+}
+
+resource "azurerm_role_assignment" "sql_kv_crypto_user" {
+  scope                = data.azurerm_key_vault.shared.id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+  principal_id         = azurerm_mssql_server.sql.identity[0].principal_id
+}
+
+resource "azurerm_mssql_server_key" "tde_key" {
+  server_id        = azurerm_mssql_server.sql.id
+  key_vault_key_id = azurerm_key_vault_key.sql_cmk.id
+
+  depends_on = [azurerm_role_assignment.sql_kv_crypto_user]
+}
+
+resource "azurerm_mssql_server_transparent_data_encryption" "tde" {
+  server_id        = azurerm_mssql_server.sql.id
+  key_vault_key_id = azurerm_key_vault_key.sql_cmk.id
+
+  depends_on = [azurerm_mssql_server_key.tde_key]
+}
+
+##creating the database
+resource "azurerm_mssql_database" "db" {
+  name      = local.sql_db_name
+  server_id = azurerm_mssql_server.sql.id
+  sku_name  = "Basic" # keep cost low; parameterise later if needed
+
+  tags = var.tags
+
+  depends_on = [azurerm_mssql_server_transparent_data_encryption.tde]
+}
+
+
+
+

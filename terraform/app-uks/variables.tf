@@ -24,3 +24,11 @@ variable "shared_kv_rg"   { type = string }
 
 variable "appgw_cert_name" { type = string } # name of the cert in Key Vault
 
+#sql variables
+variable "sql_admin_login" { type = string }
+
+variable "sql_admin_password" {
+  type      = string
+  sensitive = true
+}
+
