@@ -130,7 +130,7 @@ resource "azurerm_role_assignment" "kv_platform_admin" {
   principal_id         = data.azurerm_client_config.current.object_id
 
   lifecycle {
-    ignore_changes = [name]
+    ignore_changes        = [name]
     create_before_destroy = false
   }
 }
