@@ -211,7 +211,7 @@ jobs:
     name: 'Post-Deploy Integration Tests'
     runs-on: ubuntu-latest
     needs: terraform-deploy
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' || github.event.inputs.action == 'apply'
     
     steps:
       - name: Checkout Code
