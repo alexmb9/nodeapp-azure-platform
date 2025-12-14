@@ -296,9 +296,10 @@ jobs:
               --query "defaultHostName" -o tsv)
             
             curl -f -s -o /dev/null https://$APP_URL/health || echo "⚠️ App Service health check failed"
-            echo "✅ App Service is running"
+            echo "App Service is running"
           else
-            echo "⚠️ App Service is disabled"
+            echo "App Service is disabled"
+            exit 1
           fi
 
       - name: Health Check Summary
