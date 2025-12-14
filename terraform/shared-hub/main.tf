@@ -124,16 +124,16 @@ resource "azurerm_key_vault" "shared" {
 }
 
 # give user current admin rights of the shared platform
-resource "azurerm_role_assignment" "kv_platform_admin" {
-  scope                = azurerm_key_vault.shared.id
-  role_definition_name = "Key Vault Administrator"
-  principal_id         = data.azurerm_client_config.current.object_id
-
-  lifecycle {
-    ignore_changes        = [name]
-    create_before_destroy = false
-  }
-}
+#resource "azurerm_role_assignment" "kv_platform_admin" {
+#  scope                = azurerm_key_vault.shared.id
+#  role_definition_name = "Key Vault Administrator"
+#  principal_id         = data.azurerm_client_config.current.object_id
+#
+#  lifecycle {
+#    ignore_changes        = [name]
+#    create_before_destroy = false
+#  }
+#}
 
 #diagnostics resources for log analytics workspace
 resource "azurerm_monitor_diagnostic_setting" "firewall_diag" {
