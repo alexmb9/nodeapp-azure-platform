@@ -313,14 +313,20 @@ resource "azurerm_linux_web_app" "nodeapp" {
     ftps_state          = "Disabled"
   }
 
-  app_settings = {
-    NODE_ENV                 = lower(var.environment)
-    WEBSITE_RUN_FROM_PACKAGE = "1"
-    PORT                     = "8080"
+  app_settings = merge(
+    { NODE_ENV                 = lower(var.environment)
+      WEBSITE_RUN_FROM_PACKAGE = "1"
+      PORT                     = "8080"
 
-    # Optional: keeps deployments tidy / predictable
-    SCM_DO_BUILD_DURING_DEPLOYMENT = "true"
-  }
+      # Optional: keeps deployments tidy / predictable
+      SCM_DO_BUILD_DURING_DEPLOYMENT = "true" },
+
+    #Flag to enable telemetry when flag is flipped (SKU provision is allowed)  
+    var.enable_app_service ? {
+      APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.appins.connection_string
+      APPINSIGHTS_CONNECTION_STRING         = azurerm_application_insights.appins.connection_string
+    } : {}
+  )
 
   tags = var.tags
 }
