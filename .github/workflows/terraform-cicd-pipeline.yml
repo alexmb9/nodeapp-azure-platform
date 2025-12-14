@@ -136,9 +136,9 @@ jobs:
       matrix:
         environment: [shared-hub, app-ne]
       max-parallel: 1  # Deploy sequentially to avoid conflicts
-    environment:
-      name: production
-      url: https://portal.azure.com
+    #environment:
+      #name: production
+      #url: https://portal.azure.com
 
     steps:
       - name: Checkout Code
@@ -270,7 +270,7 @@ jobs:
           az keyvault secret list \
             --vault-name kv-shared-hub-prod-ne01 \
             --query "[].name" -o tsv > /dev/null
-          echo "✅ Key Vault is accessible"
+          echo " Key Vault is accessible"
 
       - name: Test 5 - Verify VNet Peering
         run: |
@@ -282,15 +282,15 @@ jobs:
             --query "peeringState" -o tsv 2>/dev/null || echo "NotFound")
           
           if [ "$PEERING_STATE" == "Connected" ]; then
-            echo "✅ VNet peering is connected"
+            echo " VNet peering is connected"
           else
-            echo "⚠️  VNet peering state: $PEERING_STATE"
+            echo " VNet peering state: $PEERING_STATE"
           fi
 
       - name: Health Check Summary
         run: |
           echo "================================================"
-          echo "🎉 POST-DEPLOY TESTS PASSED"
+          echo "POST-DEPLOY TESTS PASSED"
           echo "================================================"
           echo "All infrastructure components are healthy and operational"
 
@@ -342,7 +342,7 @@ jobs:
             --auth-mode login)
           
           echo "latest_backup=$LATEST_BACKUP" >> $GITHUB_OUTPUT
-          echo "🔄 Rolling back to: $LATEST_BACKUP"
+          echo "Rolling back to: $LATEST_BACKUP"
 
       - name: Download Backup State
         run: |
