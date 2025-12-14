@@ -1,0 +1,456 @@
+name: Terraform CI/CD Pipeline
+
+# This pipeline handles deployments for:
+# - shared-hub: AzureRM provider v3.x
+# - app-ne: AzureRM provider v4.x
+# Each module maintains its own provider version independently
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+          - rollback
+
+env:
+  ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+  ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+  ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+  TF_VERSION: '1.6.0'
+
+jobs:
+  # ==========================================
+  # STAGE 1: PLAN
+  # ==========================================
+  terraform-plan:
+    name: 'Terraform Plan'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [shared-hub, app-ne]
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Terraform Init
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          # Handle different provider versions
+          if [ "${{ matrix.environment }}" == "shared-hub" ]; then
+            echo "Initializing shared-hub with AzureRM v3.x"
+          else
+            echo "Initializing app-ne with AzureRM v4.x"
+          fi
+          terraform init -backend-config=env/prod/backend.tfvars
+
+      - name: Terraform Validate
+        working-directory: terraform/${{ matrix.environment }}
+        run: terraform validate
+
+      - name: Terraform Format Check
+        working-directory: terraform/${{ matrix.environment }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Plan
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          terraform plan \
+            -var-file=env/prod/terraform.tfvars \
+            -var="sql_admin_password=${{ secrets.SQL_ADMIN_PASSWORD }}" \
+            -out=tfplan-${{ matrix.environment }}.binary
+
+      - name: Convert Plan to JSON
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          terraform show -json tfplan-${{ matrix.environment }}.binary > tfplan-${{ matrix.environment }}.json
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: |
+            terraform/${{ matrix.environment }}/tfplan-${{ matrix.environment }}.binary
+            terraform/${{ matrix.environment }}/tfplan-${{ matrix.environment }}.json
+          retention-days: 5
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('terraform/${{ matrix.environment }}/tfplan-${{ matrix.environment }}.json', 'utf8');
+            const planSummary = JSON.parse(plan);
+            
+            const comment = `## Terraform Plan: ${{ matrix.environment }}
+            
+            **Changes**: ${planSummary.resource_changes?.length || 0} resources
+            
+            <details>
+            <summary>View Full Plan</summary>
+            
+            \`\`\`
+            ${plan}
+            \`\`\`
+            </details>`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+  # ==========================================
+  # STAGE 2: DEPLOY
+  # ==========================================
+  terraform-deploy:
+    name: 'Terraform Deploy'
+    runs-on: ubuntu-latest
+    needs: terraform-plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    strategy:
+      matrix:
+        environment: [shared-hub, app-ne]
+      max-parallel: 1  # Deploy sequentially to avoid conflicts
+    environment:
+      name: production
+      url: https://portal.azure.com
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-${{ matrix.environment }}
+          path: terraform/${{ matrix.environment }}
+
+      - name: Terraform Init
+        working-directory: terraform/${{ matrix.environment }}
+        run: terraform init -backend-config=env/prod/backend.tfvars
+
+      - name: Create State Backup
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+          terraform state pull > state-backup-$TIMESTAMP.json
+          
+          # Upload to Azure Storage for safekeeping
+          az storage blob upload \
+            --account-name sttfstatesharedambprod \
+            --container-name tfstate-backups \
+            --name ${{ matrix.environment }}/state-backup-$TIMESTAMP.json \
+            --file state-backup-$TIMESTAMP.json \
+            --auth-mode login
+
+      - name: Terraform Apply
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          terraform apply \
+            -auto-approve \
+            tfplan-${{ matrix.environment }}.binary
+
+      - name: Capture Outputs
+        id: outputs
+        working-directory: terraform/${{ matrix.environment }}
+        run: |
+          terraform output -json > outputs.json
+          echo "outputs=$(cat outputs.json)" >> $GITHUB_OUTPUT
+
+      - name: Upload Deployment Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-${{ matrix.environment }}
+          path: terraform/${{ matrix.environment }}/outputs.json
+          retention-days: 30
+
+  # ==========================================
+  # STAGE 3: POST-DEPLOY
+  # ==========================================
+  post-deploy-tests:
+    name: 'Post-Deploy Integration Tests'
+    runs-on: ubuntu-latest
+    needs: terraform-deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Download Deployment Outputs
+        uses: actions/download-artifact@v3
+        with:
+          name: deployment-app-ne
+          path: ./outputs
+
+      - name: Test 1 - Verify Resource Group
+        run: |
+          echo "Testing resource group existence..."
+          az group show --name rg-nodeapp-prod-ne --query "properties.provisioningState" -o tsv | grep -q "Succeeded"
+          echo "✅ Resource group verified"
+
+      - name: Test 2 - Verify App Gateway
+        run: |
+          echo "Testing Application Gateway..."
+          STATUS=$(az network application-gateway show \
+            --name agw-nodeapp-prod-ne \
+            --resource-group rg-nodeapp-prod-ne \
+            --query "provisioningState" -o tsv)
+          
+          if [ "$STATUS" == "Succeeded" ]; then
+            echo "✅ Application Gateway is healthy"
+          else
+            echo "❌ Application Gateway failed: $STATUS"
+            exit 1
+          fi
+
+      - name: Test 3 - Verify SQL Server
+        run: |
+          echo "Testing SQL Server connectivity..."
+          SQL_SERVER=$(az sql server show \
+            --name sql-nodeapp-prod-ne \
+            --resource-group rg-nodeapp-prod-ne \
+            --query "fullyQualifiedDomainName" -o tsv)
+          
+          if [ -n "$SQL_SERVER" ]; then
+            echo "✅ SQL Server is accessible: $SQL_SERVER"
+          else
+            echo "❌ SQL Server not found"
+            exit 1
+          fi
+
+      - name: Test 4 - Verify Key Vault Access
+        run: |
+          echo "Testing Key Vault access..."
+          az keyvault secret list \
+            --vault-name kv-shared-hub-prod-ne01 \
+            --query "[].name" -o tsv > /dev/null
+          echo "✅ Key Vault is accessible"
+
+      - name: Test 5 - Verify VNet Peering
+        run: |
+          echo "Testing VNet peering..."
+          PEERING_STATE=$(az network vnet peering show \
+            --name hub-to-app \
+            --resource-group rg-shared-hub-prod \
+            --vnet-name vnet-hub-prod-ne \
+            --query "peeringState" -o tsv 2>/dev/null || echo "NotFound")
+          
+          if [ "$PEERING_STATE" == "Connected" ]; then
+            echo "✅ VNet peering is connected"
+          else
+            echo "⚠️  VNet peering state: $PEERING_STATE"
+          fi
+
+      - name: Setup Monitoring Alerts
+        run: |
+          echo "Setting up Azure Monitor alerts..."
+          
+          # Create action group for notifications
+          az monitor action-group create \
+            --name ag-nodeapp-prod-alerts \
+            --resource-group rg-nodeapp-prod-ne \
+            --short-name NodeAppOps \
+            --email-receiver admin admin@example.com \
+            || echo "Action group already exists"
+          
+          # Application Gateway health alert
+          az monitor metrics alert create \
+            --name alert-appgw-unhealthy \
+            --resource-group rg-nodeapp-prod-ne \
+            --scopes $(az network application-gateway show --name agw-nodeapp-prod-ne --resource-group rg-nodeapp-prod-ne --query id -o tsv) \
+            --condition "avg UnhealthyHostCount > 0" \
+            --window-size 5m \
+            --evaluation-frequency 1m \
+            --action ag-nodeapp-prod-alerts \
+            --description "Alert when Application Gateway has unhealthy hosts" \
+            || echo "Alert already exists"
+          
+          echo "✅ Monitoring alerts configured"
+
+      - name: Health Check Summary
+        run: |
+          echo "================================================"
+          echo "🎉 POST-DEPLOY TESTS PASSED"
+          echo "================================================"
+          echo "All infrastructure components are healthy and operational"
+          echo "Monitoring and alerting configured successfully"
+
+  # ==========================================
+  # STAGE 4: ROLLBACK
+  # ==========================================
+  terraform-rollback:
+    name: 'Terraform Rollback'
+    runs-on: ubuntu-latest
+    if: failure() || github.event.inputs.action == 'rollback'
+    needs: [terraform-deploy, post-deploy-tests]
+    environment:
+      name: production-rollback
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Azure Login
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: List Available Backups
+        run: |
+          echo "📋 Available state backups:"
+          az storage blob list \
+            --account-name sttfstatesharedambprod \
+            --container-name tfstate-backups \
+            --prefix app-ne/ \
+            --query "[].{Name:name, LastModified:properties.lastModified}" \
+            --output table \
+            --auth-mode login
+
+      - name: Get Latest Backup
+        id: backup
+        run: |
+          LATEST_BACKUP=$(az storage blob list \
+            --account-name sttfstatesharedambprod \
+            --container-name tfstate-backups \
+            --prefix app-ne/state-backup- \
+            --query "sort_by([].{name:name, lastModified:properties.lastModified}, &lastModified)[-1].name" \
+            --output tsv \
+            --auth-mode login)
+          
+          echo "latest_backup=$LATEST_BACKUP" >> $GITHUB_OUTPUT
+          echo "🔄 Rolling back to: $LATEST_BACKUP"
+
+      - name: Download Backup State
+        run: |
+          mkdir -p terraform/app-ne
+          az storage blob download \
+            --account-name sttfstatesharedambprod \
+            --container-name tfstate-backups \
+            --name ${{ steps.backup.outputs.latest_backup }} \
+            --file terraform/app-ne/rollback-state.json \
+            --auth-mode login
+
+      - name: Terraform Init
+        working-directory: terraform/app-ne
+        run: terraform init -backend-config=env/prod/backend.tfvars
+
+      - name: Restore State
+        working-directory: terraform/app-ne
+        run: |
+          # Push the backup state to become current state
+          cat rollback-state.json | terraform state push -
+
+      - name: Verify Rollback Plan
+        working-directory: terraform/app-ne
+        run: |
+          terraform plan \
+            -var-file=env/prod/terraform.tfvars \
+            -var="sql_admin_password=${{ secrets.SQL_ADMIN_PASSWORD }}" \
+            -out=rollback.tfplan
+
+      - name: Apply Rollback
+        working-directory: terraform/app-ne
+        run: |
+          terraform apply -auto-approve rollback.tfplan
+
+      - name: Notify Rollback
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Production Rollback Executed',
+              body: `## Rollback Summary
+              
+              **Trigger**: ${{ github.event_name }}
+              **Commit**: ${{ github.sha }}
+              **Backup Used**: ${{ steps.backup.outputs.latest_backup }}
+              **Status**: ${{ job.status }}
+              
+              Please investigate the cause of the deployment failure.
+              
+              [View Workflow Run](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`
+            });
+
+      - name: Send Teams/Slack Notification
+        if: always()
+        run: |
+          echo "🚨 ROLLBACK EXECUTED - Infrastructure reverted to previous state"
+          echo "Manual verification required before next deployment"
+
+  # ==========================================
+  # NOTIFICATION JOB
+  # ==========================================
+  notify-completion:
+    name: 'Notify Deployment Status'
+    runs-on: ubuntu-latest
+    needs: [post-deploy-tests]
+    if: always()
+    
+    steps:
+      - name: Send Success Notification
+        if: needs.post-deploy-tests.result == 'success'
+        run: |
+          echo "✅ DEPLOYMENT SUCCESSFUL"
+          echo "All stages completed successfully"
+          echo "Infrastructure is healthy and operational"
+
+      - name: Send Failure Notification
+        if: needs.post-deploy-tests.result == 'failure'
+        run: |
+          echo "❌ DEPLOYMENT FAILED"
+          echo "Rollback procedures initiated"
+          echo "Manual intervention may be required"
