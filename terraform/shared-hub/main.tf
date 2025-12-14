@@ -128,6 +128,11 @@ resource "azurerm_role_assignment" "kv_platform_admin" {
   scope                = azurerm_key_vault.shared.id
   role_definition_name = "Key Vault Administrator"
   principal_id         = data.azurerm_client_config.current.object_id
+
+  lifecycle {
+    ignore_changes = [name]
+    create_before_destroy = false
+  }
 }
 
 #diagnostics resources for log analytics workspace
