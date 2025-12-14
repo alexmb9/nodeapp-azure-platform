@@ -32,3 +32,9 @@ variable "sql_admin_password" {
   sensitive = true
 }
 
+#app-svc variables
+variable "appsvc_plan_sku" { type = string }      # e.g. "B1" (cheap) or "P1v3" (better)
+variable "appsvc_name"     { type = string }      # keep unique per env/region
+variable "appsvc_int_cidr" { type = string }      # delegated subnet for VNet integration
+variable "health_check_path" { type = string }    # e.g. "/health"
+

@@ -250,6 +250,73 @@ resource "azurerm_mssql_server_transparent_data_encryption" "tde" {
 }
 
 
+#app service vnet delegated subnet, for vnet integration
+resource "azurerm_subnet" "appsvc_integration" {
+  name                 = "snet-appsvc-int"
+  resource_group_name  = azurerm_resource_group.app.name
+  virtual_network_name = azurerm_virtual_network.app.name
+  address_prefixes     = [var.appsvc_int_cidr]
+
+  delegation {
+    name = "delegation-appsvc"
+    service_delegation {
+      name    = "Microsoft.Web/serverFarms"
+      actions = ["Microsoft.Network/virtualNetworks/subnets/action"]
+    }
+  }
+}
+
+#linux app service plan
+resource "azurerm_service_plan" "appsvc_plan" {
+  name                = "asp-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  resource_group_name = azurerm_resource_group.app.name
+  location            = azurerm_resource_group.app.location
+
+  os_type   = "Linux"
+  sku_name  = var.appsvc_plan_sku
+
+  tags = var.tags
+}
+
+#linux web app (node) + managed identity
+resource "azurerm_linux_web_app" "nodeapp" {
+  name                = var.appsvc_name
+  resource_group_name = azurerm_resource_group.app.name
+  location            = azurerm_resource_group.app.location
+  service_plan_id     = azurerm_service_plan.appsvc_plan.id
+
+  https_only = true
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  site_config {
+    always_on        = true
+    health_check_path = var.health_check_path
+
+    application_stack {
+      node_version = "20-lts"
+    }
+  }
+
+  app_settings = {
+    "NODE_ENV"                 = lower(var.environment)
+    "WEBSITE_RUN_FROM_PACKAGE" = "1"
+    "PORT"                     = "8080"
+  }
+
+  tags = var.tags
+}
+
+#VNet integration to reach endpoints
+resource "azurerm_app_service_virtual_network_swift_connection" "nodeapp_vnetint" {
+  app_service_id = azurerm_linux_web_app.nodeapp.id
+  subnet_id      = azurerm_subnet.appsvc_integration.id
+}
+
+
+
 
 
 
