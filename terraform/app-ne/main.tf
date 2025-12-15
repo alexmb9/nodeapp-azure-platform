@@ -476,7 +476,7 @@ resource "azurerm_monitor_metric_alert" "app_high_cpu" {
   criteria {
     metric_namespace = "Microsoft.Web/sites"
     metric_name      = "CpuTime"
-    aggregation      = "Total" 
+    aggregation      = "Total"
     operator         = "GreaterThan"
     threshold        = 60 # 60 seconds of CPU time in 15 min window
   }
