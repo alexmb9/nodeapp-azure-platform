@@ -2,6 +2,12 @@
 
 Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD. Built in under 3 days.
 
+<br/>
+
+---
+
+<br/>
+
 ## Project Setup (Windows)
 
 ### 1. Install Terraform
@@ -44,7 +50,11 @@ az account set --subscription "<your-subscription-id>"
 az account show
 ```
 
+<br/>
+
 ---
+
+<br/>
 
 ## Terraform Configuration
 
@@ -64,9 +74,11 @@ terraform init -backend-config=env/prod/backend.tfvars
 terraform validate
 ```
 
-
+<br/>
 
 ---
+
+<br/>
 
 ## Local Development
 
@@ -84,11 +96,11 @@ terraform plan -var-file=env/prod/terraform.tfvars -var="sql_admin_password=YOUR
 
 Review the output carefully before applying any changes.
 
-
-
-
+<br/>
 
 ---
+
+<br/>
 
 ## GitHub Actions
 
@@ -122,12 +134,11 @@ Review the output carefully before applying any changes.
    - Automatic rollback will trigger
    - A GitHub issue will be created to log the event
 
-
-
-
-
+<br/>
 
 ---
+
+<br/>
 
 ## Troubleshooting
 
@@ -194,8 +205,11 @@ MSYS_NO_PATHCONV=1 az role assignment delete \
   --scope /subscriptions/<subscription-id>/resourceGroups/rg-shared-hub-prod/providers/Microsoft.KeyVault/vaults/kv-shared-hub-prod-ne01
 ```
 
+<br/>
 
 ---
+
+<br/>
 
 ## Useful Commands
 
@@ -227,7 +241,11 @@ git commit -m "message"                                  # Commit
 git push origin main                                     # Push to GitHub
 ```
 
+<br/>
 
+---
+
+<br/>
 
 ## Resources
 
