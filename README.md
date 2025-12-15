@@ -2,7 +2,7 @@
 
 Enterprise-grade Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD.
 
-## Project Setup
+## Project Setup (Windows)
 
 ### 1. Install Terraform
 
