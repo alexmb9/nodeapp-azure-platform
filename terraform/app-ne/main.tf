@@ -462,23 +462,23 @@ resource "azurerm_monitor_action_group" "app_alerts" {
   tags = var.tags
 }
 
-# Alert Rule - High CPU on App Service
+# Alert Rule - High CPU time on App Service
 resource "azurerm_monitor_metric_alert" "app_high_cpu" {
   count               = var.enable_app_service ? 1 : 0
   name                = "alert-${lower(var.app_name)}-high-cpu"
   resource_group_name = azurerm_resource_group.app.name
   scopes              = [azurerm_linux_web_app.nodeapp[0].id]
-  description         = "Alert when App Service CPU exceeds 80%"
+  description         = "Alert when App Service CPU time is high"
   severity            = 2
   frequency           = "PT5M"
   window_size         = "PT15M"
 
   criteria {
     metric_namespace = "Microsoft.Web/sites"
-    metric_name      = "CpuPercentage"
-    aggregation      = "Average"
+    metric_name      = "CpuTime"
+    aggregation      = "Total" 
     operator         = "GreaterThan"
-    threshold        = 80
+    threshold        = 60 # 60 seconds of CPU time in 15 min window
   }
 
   action {
