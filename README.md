@@ -1,6 +1,6 @@
 # NodeApp Azure Platform
 
-Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD.
+Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD. Built in under 3 days.
 
 ## Project Setup (Windows)
 
