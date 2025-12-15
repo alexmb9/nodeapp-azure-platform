@@ -14,10 +14,10 @@ Node.js application infrastructure on Azure with hub-and-spoke architecture and 
 
 Download from [terraform.io/downloads](https://www.terraform.io/downloads)
 
-Extract to `C:\terraform` and add to PATH:
+Extract to `C:\terraform` (or whatever path you want) and add to PATH:
 1. Open **System Properties** → **Environment Variables**
 2. Under **System variables**, select **Path** → **Edit** → **New**
-3. Add `C:\terraform`
+3. Add `C:\terraform` (your selected path)
 4. Click **OK** and restart terminal
 
 **Verify:**
