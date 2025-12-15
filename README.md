@@ -1,6 +1,6 @@
 # NodeApp Azure Platform
 
-Enterprise-grade Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD.
+Node.js application infrastructure on Azure with hub-and-spoke architecture and automated CI/CD.
 
 ## Project Setup (Windows)
 
