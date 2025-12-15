@@ -444,3 +444,46 @@ resource "azurerm_private_endpoint" "kv" {
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.kv_link]
 }
+
+
+#monitoring
+
+# Action Group - Who gets notified when alerts fire
+resource "azurerm_monitor_action_group" "app_alerts" {
+  name                = "ag-${lower(var.app_name)}-${lower(var.environment)}-${lower(var.region_code)}"
+  resource_group_name = azurerm_resource_group.app.name
+  short_name          = "appalerts"
+
+  email_receiver {
+    name          = "sendtoadmin"
+    email_address = "alex.baxter99@outlook.com" # Change this to your email
+  }
+
+  tags = var.tags
+}
+
+# Alert Rule - High CPU time on App Service
+resource "azurerm_monitor_metric_alert" "app_high_cpu" {
+  count               = var.enable_app_service ? 1 : 0
+  name                = "alert-${lower(var.app_name)}-high-cpu"
+  resource_group_name = azurerm_resource_group.app.name
+  scopes              = [azurerm_linux_web_app.nodeapp[0].id]
+  description         = "Alert when App Service CPU time is high"
+  severity            = 2
+  frequency           = "PT5M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "Microsoft.Web/sites"
+    metric_name      = "CpuTime"
+    aggregation      = "Total"
+    operator         = "GreaterThan"
+    threshold        = 60 # 60 seconds of CPU time in 15 min window
+  }
+
+  action {
+    action_group_id = azurerm_monitor_action_group.app_alerts.id
+  }
+
+  tags = var.tags
+}
